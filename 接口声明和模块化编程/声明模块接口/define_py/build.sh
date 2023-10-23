@@ -1,0 +1,1 @@
+cythonize -i --3 A.py
