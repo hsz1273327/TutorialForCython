@@ -1,4 +1,4 @@
-# Cython的编译补充
+# Cython的编译
 
 Cython本身只是一个转译工具,它的作用是将python/cython源码转译成C/C++代码.所谓的编译本质上是将转译好的C/C++源码使用C/C++编译器编译成需要的东西.
 
@@ -129,7 +129,7 @@ Cython无论用在哪里,怎么用,都必须先将Cython源码转译为C/C++源�
 
 ## `Cythonize`编译
 
-`Cythonize`编译本质上就是`cython`转译+C/C++编译器编译,只是cythonize将这个过程封装了成了一个步骤.`Cythonize`编译会在如下场景中被用到:
+`Cythonize`编译本质上就是`cython`转译后再使用C/C++编译器编译,只是cythonize将这个过程封装了成了一个步骤.`Cythonize`编译会在如下场景中被用到:
 
 1. 使用`cythonize`工具编译动态链接库作为python模块
 2. 使用`setuptools`在`setup.py`中编译动态链接库并作为python模块发布
@@ -147,7 +147,7 @@ Cython的模块化编程我们会在后面的章节中详细介绍.
 
 `Cythonize`编译除了有上面的转译指令用于控制转译时的行为外,还可以通过编译链接指令来控制编译链接时的行为.这些行为是实际是[setuptools.Extension](https://setuptools.pypa.io/en/latest/userguide/ext_modules.html#extension-api-reference)在处理.Cythonize编译时会将这些编译链接指令传递给`setuptools.Extension`处理进行编译操作.
 
-如何使用`cythonize`工具以及如何在jupyter中使用魔法命令`%%cython`我们在前面的工具链部分已经有介绍了这边就不多赘述;使用`setuptools`在`setup.py`中编译动态链接库并作为python模块发布则是正文部分的重点之一,也不多赘述.本文将主要介绍参数设置和剩下几个在python运行时编译cython代码的接口.
+如何使用`cythonize`工具以及如何在jupyter中使用魔法命令`%%cython`我们在前面的工具链部分已经有介绍了这边就不多赘述;使用`setuptools`在`setup.py`中编译动态链接库并作为python模块发布则是后面<使用Cython做扩展>部分的重点之一,此处也不多赘述.本文将主要介绍参数设置和剩下几个在python运行时编译cython代码的接口.
 
 ### 编译链接指令
 
