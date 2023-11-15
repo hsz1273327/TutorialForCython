@@ -1,6 +1,6 @@
 # C对象部分
 
-由于不用于python解释器对接,C/C++对象部分负责的是将Cython语法尽可能的映射为C语法的代码,也就是说这部分可以没有python的事儿的.
+由于不用与python解释器对接,C/C++对象部分负责的是将Cython语法尽可能的映射为C语法的代码,也就是说这部分可以没有python的事儿的.
 
 但并不是说这部分就不能有python对象,相反的这部分的c函数可以接收返回python对象.但个人并不推荐这样做.保持C对象部分的纯净只有好处没有坏处.
 
@@ -13,6 +13,38 @@ Cython转换成的代码总体而言还是C代码,在实现方面C++部分也仅
 
 ## C/C++变量类型声明
 
+cython中的C/C++变量类型字面量和C/C++中一致,下面是对照表:
+
+
+cython中类型|c/c++中类型|位数|说明
+---|---|---|---
+`char`|`char`| 8-bit|单字符类型,表示`ASCII码`对应编码(0~127) 
+`unsigned char`|`unsigned char`|8-bit|不带符号的char类型,用于将字符作为数处理,范围`0~255`
+`signed char`|`signed char`|8-bit|带符号的char类型,用于将字符作为数处理,范围`-127~127`
+`short`/`signed short`|`short`/`short int`/`signed short`/`signed short int`|16-bit|带符号的短整型数,范围`−32,767~+32,767`
+`unsigned short`|`unsigned short`/`unsigned short int`|16-bit|不带符号短整型数,范围`0~65,535`
+`int`/`signed int`|`int`/`signed int`/`signed`|16-bit|带符号基础整型数,范围`−32,767~+32,767`
+`unsigned int`|`unsigned int`/`unsigned`|16-bit|不带符号基础整型数,范围`0~65,535`
+`long`/`signed long`|`long`/`signed long`/`long int`/`signed long int`|32-bit|带符号长整型数,范围`−2,147,483,647~+2,147,483,647`
+`unsigned long`|`unsigned long`/`unsigned long int`|32-bit|不带符号长整型数,范围`0~4,294,967,295`
+`long long`/`signed long long`|`long long`/`signed long long`/`long long int`/`signed long long int`|64-bit|带符号超长整型数,范围`−9,223,372,036,854,775,807~+9,223,372,036,854,775,807`
+`unsigned long long`|`unsigned long long`/`unsigned long long int`|64-bit|不带符号超长整型数,范围`0, 18,446,744,073,709,551,615`
+`float`|`float`|16-bit(取决于平台)|单精度浮点数
+`double`|`double`|32-bit(取决于平台)|双精度浮点数
+`long double`|`long double`|64-bit(取决于平台)|扩展精度浮点数
+`float complex`|`<complex.h>->float complex`|32-bit(取决于平台)|每一位都是单精度浮点数的复数
+`complex`/`double complex`|`<complex.h>->double complex`|64-bit(取决于平台)|每一位都是双精度浮点数的复数
+`long double complex`|`<complex.h>->long double complex`|128-bit(取决于平台)|每一位都是扩展精度浮点数的复数
+`size_t`|`size_t`|随实现不同不同|表示一个对象的大小的类型
+`bint`|`int`|16-bit|布尔类型,`0`值为`False`其余为`True`
+`void`|`void`|---|仅用作参数或返回值,表示空值
+`Py_tss_t`|`<Python.h>->Py_tss_t`|int(16-bit)+unsigned long(32-bit)|python线程内本地存储的标识
+`Py_UNICODE`|`<Python.h>->Py_UNICODE`|---|python的uncode类型
+`Py_UCS4`|`<Python.h>->Py_UCS4`|32-bits|python的uncode单个字符
+`Py_ssize_t`|`<Python.h>->Py_ssize_t`|随实现不同不同|python中符号化了的`size_t`
+`Py_hash_t`|`<Python.h>->Py_hash_t`|随实现不同不同|同`Py_ssize_t`
+
+
 需要声明变量类型的就两个场景:
 
 + 函数/方法签名中声明参数和返回值,比如
@@ -24,12 +56,13 @@ Cython转换成的代码总体而言还是C代码,在实现方面C++部分也仅
 + 代码块中声明变量类型,使用`cdef`进行声明,比如:
 
     ```cython
-    cdef int x,y,z
+    cdef int x,y
+    cdef int z = 1
     ```
 
 C/C++变量是可以在Python部分声明的,这就涉及到两边类型自动转化和一些限制的问题,我们会在Python对象部分进行介绍.这部分我们仅考虑在C/C++对象部分的用法和行为
 
-### 类型限定符
+### [`*`]类型限定符
 
 cython中支持使用[类型限定符(Type qualifier)](https://learn.microsoft.com/zh-cn/cpp/c-language/type-qualifiers?view=msvc-170)对变量进行约束,支持的类型限定符有:
 
@@ -45,7 +78,7 @@ cdef const int sum(const int a, const int b): # const限定符的正常用法,
     return a + b
 ```
 
-### 指针和引用
+### [`+`]指针和引用
 
 cython同样也支持指针,和C/C++中类似,其写法就是在类型后,变量名前增加一个星号`*`
 
@@ -77,6 +110,8 @@ cdef void print_const_pointer_to_const_value(const int * const value): # value�
 cdef int i = 17
 cdef int &r = i;
 ```
+
+需要注意cython也有`NULL`,一般仅用作指针初始化.
 
 #### 取地址和解引用
 
@@ -117,8 +152,8 @@ print(typeof(my_int)) # >>> Python object
 在cython中使用`<xxx>yyy`操作符来进行类型转换,其使用方式与C中类似.
 
 ```cython
-cdef char *p, float *q
-p = <char*>q
+cdef char *p, int *q
+q = <int*>p
 
 ```
 
@@ -178,6 +213,15 @@ cdef (int,double) atuple
 ```
 
 就表示`atuple`的类型为`tuple[int, double]`.这一语法被称为`ctuple`
+
+### array声明
+
+和在C语言中一样,定长array使用`cdef 元素类型[长度][长度]... 变量名`的形式声明,不定长array则使用一个固定类型指针`cdef  元素类型 * 变量名`
+
+```cython
+cdef int[10][5] x
+cdef int* y
+```
 
 
 ### C++中stl容器的声明
@@ -242,7 +286,7 @@ for x in vect:
     9
 
 
-### [`*`]对C++类对象的支持
+### [`+`]对C++类对象的支持
 
 在实现部分我们不能定义C++类,但如果已经有声明包装了一个外部的C++类,我们可以对其进行实例化,删除实例和调用操作
 
@@ -303,7 +347,7 @@ print(spam.spam, eggs.eggs[0])
     b'b' 1.0
 
 
-### 声明枚举
+### [`*`]声明枚举
 
 
 ```cython
@@ -335,7 +379,13 @@ Cython提供了以下运算符,他们有的是Python中本来就有的,在Cython
 
 + 判断运算符,包括`>`,`<`,`>=`,`<=`,`==`,`!=`,`is`,`not`,`in`,他们和python中一致,只是在C/C++中现在也可以用
 
-+ 取地址`&`,C/C++中的操作
++ 取地址`&`,Cython中可以直接使用该符号,也可以使用`cython.address`来实现
+
++ 取对象字节数`sizeof`,在cython中使用`cython.sizeof`来实现
+
++ 取对象类型`typeof`,在cython中使用`cython.typeof`来实现
+
++ 类型转换`<T>t`/<T?>t,在cython中可以直接使用该符号,也可以使用`cython.cast(T,t[,typecheck=True])`来实现
 
 
 ```cython
@@ -495,6 +545,16 @@ cdef int spam(int x) except? -1:
 之所以搞得这么复杂其实还是为了向效率妥协,毕竟使用固定异常标志量判断的开销远低于`PyErr_Occurred()`.
 
 最后如果你的函数确定不应该出现异常,则应当声明为`noexcept`.如果`noexcept`函数最终还是以异常结束那么它将打印一条警告消息但不会继续向下传递异常.
+
+总结所有的异常标志量,有如下表:
+
++ `noexcept`,表示c函数不应出现异常,异常将作为警告打印并且不会向下传递. 
+
++ `except *`,当返回值为`void`,`struct`或`union`时仅通过检验`PyErr_Occurred()`来判断异常.
+
++ `except 特定值`,当返回值为`int`,`enum`,`float`或者`指针`时找出一个必定为不会被覆盖到的异常值作为异常值
+
++ `except? 特定值`,当返回值为`int`,`enum`,`float`或者`指针`时无法找出一个必定为不会被覆盖到的异常值,仅能通过检验`PyErr_Occurred()`来判断异常.
 
 
 ### [`*`]函数指针

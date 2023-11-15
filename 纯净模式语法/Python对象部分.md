@@ -10,7 +10,7 @@ python对象部分负责和python解释器对接,也就是针对python的接口.
 
 这三种.
 
-下面我们就来分别讨论这三种接口在Cython中的实现.
+下面我们就来分别讨论这三种接口在纯净模式中的实现.
 
 
 ```python
@@ -22,12 +22,12 @@ python对象部分负责和python解释器对接,也就是针对python的接口.
 全局变量接口必须是Python类型,也就是说不要用`cdef`申明,否则python解释器无法捕获.
 
 ```cython
-cdef int a = 10 # python解释器无法识别
+a = cython.declare(cython.int,10) # python解释器无法识别
 
 b = 11 # python解释器可以正常识别
 ```
 
-当然了你用`cdef object b = 11`也是可以的,但有点啰嗦, 个人更推荐用python的type hints声明python类型,这样接口更加明确:
+当然了你用`b = cython.declare(cython.int,11)`也是可以的,但有点啰嗦, 个人更推荐用python的type hints声明python类型,这样接口更加明确:
 
 ```cython
 b: int = 11 # python解释器可以正常识别
@@ -43,17 +43,23 @@ python对象部分的核心也就在于如何在函数/类内部尽可能的使�
 ```cython
 %%cython
 # distutils: extra_compile_args=-Wno-unreachable-code
+import cython
 
-def func1(a:int,b:int)->int:
-    cdef int a_c = a
-    cdef int b_c = b
-    cdef int result_c = a + b
-    cdef object result = result_c
-    return result
+if cython.compiled:
+    print("Yep, I'm compiled.")
+    def func1(a:int,b:int)->int:
+        a_c: cython.int = a
+        b_c: cython.int = b
+        result_c: cython.int = a + b
+        result: int = result_c
+        return result
+    print(func1(1,2))
+else:
+    print("Just a lowly interpreted script.")
 
-print(func1(1,2))
 ```
 
+    Yep, I'm compiled.
     3
 
 
@@ -65,10 +71,17 @@ print(func1(1,2))
 ```cython
 %%cython
 # distutils: extra_compile_args=-Wno-unreachable-code
-
-def func1(int a,int b):
-    return a+b
+import cython
+if cython.compiled:
+    print("Yep, I'm compiled.")
+    def func1(a:cython.int ,b:cython.int)->int:
+        return a+b
+else:
+    print("Just a lowly interpreted script.")
 ```
+
+    Yep, I'm compiled.
+
 
 
 ```python
@@ -113,18 +126,22 @@ func1(1,2)
 
 ### Python和C都可调用的函数
 
-如果我们希望定义一个函数在C和Python中都可以调用,那可以使用`cpdef`.`cpdef`定义的函数性能在python函数和C函数之间.
+如果我们希望定义一个函数在C和Python中都可以调用,那可以使用装饰器`@cython.ccall`.`@cython.ccall`定义的函数性能在python函数和C函数之间.
 
-当你使用`cpdef`关键字定义一个函数或方法时`Cython`编译器会生成两个版本的函数代码:
+当你使用`@cython.ccall`定义一个函数或方法时`Cython`编译器会生成两个版本的函数代码:
 
 + 一个是C的版本,当在C部分调用时Cython会调用生成的C版本,这样性能更好;
 + 一个是Python的版本,当在Python部分调用时Cython会调用生成的Python版本,这样就获得了python部分的可见性
 
 也正是由于多了一层判断自然就带来了复杂性,同时性能也就不及纯C函数了.
 
-使用`cpdef`定义函数的语法是python定义函数和定义C函数语法的结合:
+使用`@cython.ccall`定义函数的语法是python定义函数和定义C函数语法的结合:
 
-`cpdef 返回值类型 函数名(形参类型 形参,...)`
+```python
+@cython.ccall
+def 函数名(形参:形参类型 ,...)->返回值类型:
+    pass
+```
 
 与定义C函数语法不同的是我们并不需要考虑异常标志量的问题.
 
@@ -132,8 +149,10 @@ func1(1,2)
 ```cython
 %%cython
 # distutils: extra_compile_args=-Wno-unreachable-code
+import cython
 
-cpdef int func2(int a,int b):
+@cython.ccall
+def func2(a:cython.int,b:cython.int)->cython.int:
     return a + b
 
 print(func2(1,2))
@@ -156,7 +175,7 @@ func2(3,4)
 
 ## 扩展类型
 
-Cython并不能直接定义C++中的类,但可以使用扩展类型为Python类提供扩展.方法就是在python定义类的`class`关键字前面增加`cdef`.
+Cython并不能直接定义C++中的类,但可以使用扩展类型为Python类提供扩展.方法就是在定义类的时候使用装饰器的`@cython.cclass`.
 
 一个典型的扩展类型如下
 
@@ -164,21 +183,23 @@ Cython并不能直接定义C++中的类,但可以使用扩展类型为Python类�
 ```cython
 %%cython
 # distutils: extra_compile_args=-Wno-unreachable-code
+import cython
 
-cdef class Rectangle:
-    cdef public int x0
-    cdef readonly int y0
-    cdef int x1, y1
+@cython.cclass
+class Rectangle:
+    x0 = cython.declare(cython.int, visibility='public')
+    y0 = cython.declare(cython.int, visibility='readonly')
+    x1: cython.int
+    y1: cython.int
     
-    
-    def __init__(self, int x0, int y0, int x1, int y1):
+    def __init__(self, x0: cython.int, y0: cython.int, x1: cython.int, y1: cython.int)->None:
         self.x0 = x0
         self.y0 = y0
         self.x1 = x1
         self.y1 = y1
-        
-    cdef int _area(self):
-        cdef int area
+    @cython.cfunc
+    def _area(self)->cython.int:
+        area: cython.int
         area = (self.x1 - self.x0) * (self.y1 - self.y0)
         if area < 0:
             area = -area
@@ -201,11 +222,11 @@ rect.area()
 
 
 
-我们在扩展类型中可以通过`cdef`声明C属性和C方法;也可以像正常在Python中一样定义普通的属性和方法;也可以用`cpdef`定义Python中和C中都支持的方法.
+我们在扩展类型中可以通过`cython.declare`或`typehints`声明C属性,但需要注意`typehints`方式无法声明属性的限定词;可以使用`@cython.cfunc`和C方法;也可以像正常在Python中一样定义普通的属性和方法;也可以用`@cython.ccall`声明定义Python中和C中都支持的方法.
 
 ### 属性
 
-Cython的扩展类型中需要使用`cdef`声明的属性,属性必须指定静态类型.属性默认是私有的无法被Python解释器识别.我们可以使用限定词`public`或`readonly`来为其提供可见性.
+Cython的扩展类型中可以定义C属性,C属性必须指定静态类型.属性默认是私有的无法被Python解释器识别.我们可以使用限定词`public`或`readonly`来为其提供可见性.
 
 上面例子中我们演示了Cython中属性的所有声明情况
 
@@ -216,11 +237,12 @@ Cython的扩展类型中需要使用`cdef`声明的属性,属性必须指定静�
 就像上面的例子
 
 ```cython
-cdef class Rectangle:
-    cdef public int x0
-    cdef readonly int y0
-    cdef int x1, y1
-    
+@cython.cclass
+class Rectangle:
+    x0 = cython.declare(cython.int, visibility='public')
+    y0 = cython.declare(cython.int, visibility='readonly')
+    x1: cython.int # 默认私有
+    y1: cython.int # 默认私有
     ...
 ```
 
@@ -240,13 +262,13 @@ print(rect.x1)
 
     AttributeError                            Traceback (most recent call last)
 
-    Cell In[9], line 3
+    Cell In[17], line 3
           1 print(rect.x0)
           2 print(rect.y0)
     ----> 3 print(rect.x1)
 
 
-    AttributeError: '_cython_magic_0aa36d6c75715ab458200afa6f9716cf569d' object has no attribute 'x1'
+    AttributeError: '_cython_magic_8b7438824c6399a1cc680142c115f36726f6' object has no attribute 'x1'
 
 
 
@@ -260,26 +282,27 @@ print(rect.x0)
 
 ### 属性动态化
 
-扩展类型中定义属性都是静态的,如果我们希望可以像python类一样可以动态的增加属性,我们可以在其中声明`cdef dict __dict__`
+扩展类型中定义属性都是静态的,如果我们希望可以像python类一样可以动态的增加属性,我们可以在其中声明`__dict__`
 
 
 ```cython
 %%cython
 # distutils: extra_compile_args=-Wno-unreachable-code
+import cython
 
+@cython.cclass
+class A:
+    n: cython.int
 
-cdef class A:
-    cdef int n
-
-    def __init__(self, int n):
+    def __init__(self, int n: cython.int):
         self.n = n
 
+@cython.cclass
+class B:
+    n: cython.int
+    __dict__ : dict
 
-cdef class B:
-    cdef int n
-    cdef dict __dict__
-
-    def __init__(self, int n):
+    def __init__(self, n: cython.int):
         self.n = n
 
         
@@ -296,12 +319,12 @@ a.o = 1
 
     AttributeError                            Traceback (most recent call last)
 
-    Cell In[12], line 2
+    Cell In[20], line 2
           1 a = A(10)
     ----> 2 a.o = 1
 
 
-    AttributeError: '_cython_magic_62ce1ee846ad62a0242e1c1ddbb13961bbb05c9c.A' object has no attribute 'o'
+    AttributeError: '_cython_magic_a9738fbe6b6724958cc4d39eccab3b8c769ae705.A' object has no attribute 'o'
 
 
 
@@ -316,11 +339,11 @@ print(b.o)
 
 ### 方法
 
-扩展类型的方法分C方法和Python方法.和函数的规则一样--C方法性能高但Python解释器无法识别;Python方法性能低些但对Python解释器可见;还有使用`cpdef`定义的方法性能介于C方法和Python方法之间,同时提供对Python解释器的可见性.
+扩展类型的方法分C方法和Python方法.和函数的规则一样--C方法性能高但Python解释器无法识别;Python方法性能低些但对Python解释器可见;还有使用`@cython.ccall`定义的方法性能介于C方法和Python方法之间,同时提供对Python解释器的可见性.
 
 方法的定义语法也和函数基本一致,只是有如下几个注意点:
 
-+ 支持静态方法`@staticmethod`但**不支持类方法`@classmethod`**
++ 支持静态方法`@staticmethod`但**不支持类方法`@classmethod`**,注意`@staticmethod`需要写在`@cython.cfunc`或`@cython.ccall`的上面
 + 静态方法`@staticmethod`通常不会是C方法
 
 上例中`_area`是C级别的函数,不可被python解释器访问,而`area`则是Python函数,上面的例子中我们实际上用`area`封装了C方法`_area`.这么写没啥问题但比较啰嗦,更多的时候这种简单封装的写法会用`cpdef`方法来替代
@@ -329,22 +352,25 @@ print(b.o)
 ```cython
 %%cython
 # distutils: extra_compile_args=-Wno-unreachable-code
+import cython
 
-
-cdef class Rectangle2:
-    cdef public int x0
-    cdef readonly int y0
-    cdef int x1, y1
+@cython.cclass
+class Rectangle2:
+    x0 = cython.declare(cython.int, visibility='public')
+    y0 = cython.declare(cython.int, visibility='readonly')
+    x1: cython.int
+    y1: cython.int
     
     
-    def __init__(self, int x0, int y0, int x1, int y1):
+    def __init__(self, x0: cython.int, y0: cython.int, x1: cython.int, y1: cython.int)->None:
         self.x0 = x0
         self.y0 = y0
         self.x1 = x1
         self.y1 = y1
-        
-    cpdef int area(self):
-        cdef int area
+    
+    @cython.ccall
+    def area(self)->cython.int:
+        area: cython.int
         area = (self.x1 - self.x0) * (self.y1 - self.y0)
         if area < 0:
             area = -area
@@ -362,8 +388,8 @@ r = Rectangle2(1, 2, 3, 1)
 python中的特性本质上还是函数,扩展类型中依然支持,只是必须使用Python函数定义
 
 ```cython
-
-cdef class Spam:
+@cython.cclass
+class Spam:
     ...
     @property
     def cheese(self):
@@ -382,33 +408,6 @@ cdef class Spam:
     ...
 ```
 
-除了上面这种装饰器语法外,Cython的扩展类型允许使用一种声明式的语法来等价的定义属性.
-
-```cython
-cdef class Spam:
-    ...
-    property cheese:
-
-        "A doc string can go here."
-
-        def __get__(self):
-            # 只读
-            ...
-
-        def __set__(self, value):
-            # 可写
-            ...
-
-        def __del__(self):
-            # 可删
-            ...
-    ...
-```
-
-`__get__()`，`__set__()`和`__del__()`方法都是可选的.如果省略，属性访问会引发异常.
-
-
-两种写法完全等价,第二种相对更加结构化便于维护.推荐在`.pyx`文件中使用第二种写法,在纯净模式的`.py`文件中使用第一种.
 
 ### 初始化和实例化
 
@@ -438,34 +437,38 @@ Cython中额外定义了特殊方法`__cinit__`用于处理C级别的初始化.�
 %%cython
 # distutils: extra_compile_args=-Wno-unreachable-code
 
+import cython
 
-cdef class A:
-    cdef public int x0
-    cdef readonly int y0
-    cdef int x1, y1
+@cython.cclass
+class A:
+    x0 = cython.declare(cython.int, visibility='public')
+    y0 = cython.declare(cython.int, visibility='readonly')
+    x1: cython.int
+    y1: cython.int
     
     
-    def __init__(self, int x0, int y0, int x1, int y1):
+    def __init__(self,  x0: cython.int, y0: cython.int, x1: cython.int, y1: cython.int)->None:
         self.x0 = x0
         self.y0 = y0
         self.x1 = x1
         self.y1 = y1
         print(f"A init {x0} {x1} {y0} {y1}")
         
-    def __cinit__(self,*args,**kwargs):
+    def __cinit__(self,*args,**kwargs)->None:
         print(f"A cinit args {args} and kwargs {kwargs}")
 
-cdef class AA(A):
+@cython.cclass
+class AA(A):
     
-    def __init__(self, int x0, int y0, int x1, int y1):
+    def __init__(self, x0: cython.int, y0: cython.int, x1: cython.int, y1: cython.int)->None:
         print(f"AA init {x0} {x1} {y0} {y1}")
         super().__init__( x0+1 , y0+ 1, x1+1, y1+1)
         
-    def __cinit__(self,*args,**kwargs):
+    def __cinit__(self,*args,**kwargs)->None:
         print(f"AA cinit args {args} and kwargs {kwargs}")
         
 class B(A):
-    def __init__(self, x0:int , y0:int, x1:int, y1: int):
+    def __init__(self, x0:int , y0:int, x1:int, y1: int)->None:
         print(f"B init {x0} {x1} {y0} {y1}")
         super().__init__( x0+1 , y0+ 1, x1+1, y1+1)
         
@@ -521,16 +524,18 @@ b = B(1,2,3,4)
 ```cython
 %%cython
 # distutils: extra_compile_args=-Wno-unreachable-code
+import cython
+from typing import Any
 
+@cython.cclass
+class Penguin:
 
-cdef class Penguin:
-    cdef public object food
- 
-    def __cinit__(self, food):
+    food = cython.declare(object, visibility='public')
+    def __cinit__(self, food: Any)->None:
         self.food = food
         print("ciniting!")
  
-    def __init__(self, food):
+    def __init__(self, food: Any)->None:
         print("initing!")
 ```
 
@@ -564,16 +569,18 @@ fast_penguin = Penguin.__new__(Penguin, 'wheat') # 快速实例化
 ```cython
 %%cython
 # distutils: extra_compile_args=-Wno-unreachable-code
-cimport cython
- 
-@cython.freelist(2)
-cdef class Penguin:
-    cdef object food
-    def __cinit__(self, food):
+import cython
+from typing import Any
+
+@cython.freelist(8)
+@cython.cclass
+class Penguin:
+    food: object
+    def __cinit__(self, food: Any)->None:
         self.food = food
         print("ciniting!")
  
-    def __init__(self, food):
+    def __init__(self, food: Any)->None:
         print("initing!")
 ```
 
@@ -619,16 +626,19 @@ python中有[__del__](https://docs.python.org/zh-cn/3/reference/datamodel.html?h
 ```cython
 %%cython
 # distutils: extra_compile_args=-Wno-unreachable-code
+import cython
 
 
-cdef class A:
+@cython.cclass
+class A:
     def __del__(self):
         print(f"A delete")
         
     def __dealloc__(self):
         print(f"A dealloc")
 
-cdef class AA(A):
+@cython.cclass
+class AA(A):
     def __del__(self):
         print(f"AA delete")
         
@@ -707,10 +717,11 @@ Cython扩展类型的继承规则如下:
 我们可以通过装饰器`@cython.final`防止被装饰的扩展类型在Python中被子类化
 
 ```cython
-cimport cython
+import cython
  
 @cython.final
-cdef class Parrot:
+@cython.cclass
+class Parrot:
     def done(self): pass
 ```
 
@@ -718,8 +729,8 @@ cdef class Parrot:
 
 在扩展类型中同一申明方式的可以相互重载,而不同申明方式的则有一套优先级:
 
-+ `cpdef`可以重载`cdef`,而反过来就不行
-+ `def`可以重载`cpdef`,而反过来就不行
++ `@cython.ccall`装饰的方法可以重载`@cython.cfunc`装饰的方法,而反过来就不行
++ 无装饰器的方法可以重载`@cython.ccall`装饰的方法,而反过来就不行
 
 > 同一申明方式相互重载
 
@@ -727,15 +738,21 @@ cdef class Parrot:
 ```cython
 %%cython
 # distutils: extra_compile_args=-Wno-unreachable-code
+import cython
 
-
-cdef class A:
-    cdef foo(self):
+@cython.cclass
+class A:
+    @cython.cfunc
+    def foo(self):
         print("A")
-cdef class AA(A):
-    cdef foo(self):
+        
+@cython.cclass
+class AA(A):
+    @cython.cfunc
+    def foo(self):
         print("AA")
-    cpdef bar(self):
+    @cython.ccall
+    def bar(self):
         self.foo()
         
 ```
@@ -754,14 +771,18 @@ AA().bar()
 ```cython
 %%cython
 # distutils: extra_compile_args=-Wno-unreachable-code
+import cython
 
-
-cdef class A:
-    cdef foo(self):
+@cython.cclass
+class A:
+    @cython.cfunc
+    def foo(self):
         print("A")
-
-cdef class B(A):
-    cpdef foo(self, x=None):
+        
+@cython.cclass
+class B(A):
+    @cython.ccall
+    def foo(self, x=None):
         print("B", x)
 
 class C(B):
@@ -784,8 +805,3 @@ C().foo()
 
     C True 3
 
-
-
-```python
-
-```
