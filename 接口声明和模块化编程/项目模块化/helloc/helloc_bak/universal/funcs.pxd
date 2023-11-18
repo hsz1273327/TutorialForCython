@@ -1,0 +1,1 @@
+cdef float get_nowtime()

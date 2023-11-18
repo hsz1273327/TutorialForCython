@@ -1,2 +1,2 @@
-cythonize -i --3 mymath
+cython -i --3 mymathc
 gcc 
