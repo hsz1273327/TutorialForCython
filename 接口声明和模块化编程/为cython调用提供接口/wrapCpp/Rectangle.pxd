@@ -1,4 +1,4 @@
-cdef extern from "Rectangle.h" namespace "shapes":
+cdef extern from "Rectangle.hpp" namespace "shapes":
     cdef cppclass Rectangle:
         int x0
         int y0

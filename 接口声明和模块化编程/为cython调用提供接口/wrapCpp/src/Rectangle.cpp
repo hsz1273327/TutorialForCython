@@ -1,5 +1,5 @@
 #include <iostream>
-#include "Rectangle.h"
+#include "Rectangle.hpp"
 
 namespace shapes {
 
