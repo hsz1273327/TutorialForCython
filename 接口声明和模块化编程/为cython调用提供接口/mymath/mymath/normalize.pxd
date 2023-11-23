@@ -1,0 +1,1 @@
+cdef double[:] _normalize(double[:] x)
