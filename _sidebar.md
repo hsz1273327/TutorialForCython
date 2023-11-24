@@ -16,13 +16,6 @@
     * [并行计算](纯净模式语法/并行计算.md)
 
 * [接口声明和模块化编程](接口声明和模块化编程/README.md)
-    * [为Cython调用提供接口]
+    * [为Cython调用提供接口](接口声明和模块化编程/为cython调用提供接口/为cython调用提供接口.md)
     * [为Python调用提供接口]
     * [为C调用提供接口]
-
-* [使用Cython做扩展](使用Cython做扩展/README.md)
-* [使用Cython做嵌入](使用Cython做扩展/README.md)
-
-
-
-

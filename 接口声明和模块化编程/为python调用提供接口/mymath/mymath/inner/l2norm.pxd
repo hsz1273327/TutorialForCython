@@ -1,0 +1,1 @@
+cpdef double l2norm(double[:] x)
