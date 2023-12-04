@@ -1,1 +1,0 @@
-cdef double[::1]  _median_along_axis0(const double[:,:] x)
