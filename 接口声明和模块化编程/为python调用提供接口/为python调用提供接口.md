@@ -238,7 +238,11 @@ cython的模块系统仅仅只是解决代码组织问题,无论哪种形式,光
 1. 查看指定环境变量比如`{外部包名}_INCLUDE_DIR`(依赖头文件所在的文件夹,`,`分隔),`{外部包名}_LIB_DIR`(依赖链接库所在的文件夹,`,`分隔)和`{外部包名}_EXT_LIB`(额外的依赖库名),有些时候一些库加进编译项中是可选的.为了更可控,我们认为`{外部包名}_EXT_LIB`中指定的库都是已经编译好了且可以在`{外部包名}_INCLUDE_DIR`和`{外部包名}_LIB_DIR`或在linux系统默认路径中找到的状态
 2. 判断安装的系统,根据系统不同考虑使用系统库
     + linux:我们可以从系统库中查找,通常INCLUDE是`/usr/include`或`/usr/local/include`通常LIB是`/usr/lib`或`/usr/local/lib`或`/usr/lib64`或`/usr/local/lib64`,这些并不需要额外添加
-    + macos:可以考虑从homebrew中查找,通常INCLUDE是`/usr/local/Cellar/{外部包名}/外部包版本/include`通常LIB是`/usr/local/Cellar/{外部包名}/外部包版本/lib`,但由于homebrew本质上是用户级的,且可以通过设置改变路径,这个不建议加进去
+    + macos:可以考虑从homebrew中查找,通常INCLUDE是`/usr/local/Cellar/{外部包名}/外部包版本/include`通常LIB是`/usr/local/Cellar/{外部包名}/外部包版本/lib`,如果执行过`brew link`操作(安装时一般都会自动执行)那么通常根据芯片不同会被链接到:
+        + x86_64(Intel Macs)芯片--`/usr/local/include`(INCLUDE)和`/usr/local/lib`(LIB)
+        + arm64(M1 Macs)芯片--`/opt/homebrew/include`(INCLUDE)和`/opt/homebrew/lib`(LIB)
+    
+    但由于homebrew本质上是用户级的,且可以通过设置改变路径,这个不建议加进去
     + window:不存在系统库
 3. 如果有依赖在系统中找不到,且不是指定的额外依赖库,则下载源码安装,如何安装就要看这个外部项目的具体说明文档了,我们可以考虑放到一个默认目录下,比如`~/.cython_vendor`等,这个就可以自由发挥了.
 
@@ -457,23 +461,28 @@ class binary_build_ext(build_ext):
                         logging.info(f'[build_ext]{libname} use sys lib')
                         noneed_downloads.append(libname)
 
-        # elif sys.platform == 'darwin':
-        #     # macos,查看homebrew
-        #     sys_lib_base_dir = Path("/usr/local/Cellar")
-        #     for libname in candidate_3rdpart:
-        #         libpath = sys_lib_base_dir.joinpath(libname)
-        #         if libpath.is_dir():
-        #             libversionpath = [i for i in libpath.iterdir() if i.is_dir() and not i.name.startswith(".")]
-        #             if len(libversionpath) >= 1:
-        #                 version = libversionpath[0].name
-        #                 noneed_downloads.append(libname)
-        #                 logging.info(f'[build_ext]{libname} use sys lib')
-        #                 if Path(f"/usr/local/Cellar/{libname}/{version}/include"):
-        #                     add_include_dirs.append(
-        #                         f"/usr/local/Cellar/{libname}/{version}/include")
-        #                 if Path(f"/usr/local/Cellar/{libname}/{version}/lib").is_dir():
-        #                     add_lib_dirs.append(
-        #                         f"/usr/local/Cellar/{libname}/{version}/lib")
+        elif sys.platform == 'darwin':
+            # macos,查看homebrew链接的库
+            if platform.machine() == "x86_64":
+                sys_lib_base_dir = Path("/usr/local/include")
+            else:
+                sys_lib_base_dir = Path("/opt/homebrew/include")
+
+            for libname in candidate_3rdpart:
+                libpath = sys_lib_base_dir.joinpath(libname)
+                if libpath.is_dir():
+                    libpath = sys_lib_base_dir.joinpath(libname)
+                    if libpath.is_dir():
+                        logging.info(f'[build_ext]{libname} use sys lib')
+                        noneed_downloads.append(libname)
+                    libpath = sys_lib_base_dir.joinpath(libname+".h")
+                    if libpath.is_file():
+                        logging.info(f'[build_ext]{libname} use sys lib')
+                        noneed_downloads.append(libname)
+                    libpath = sys_lib_base_dir.joinpath(libname+".hpp")
+                    if libpath.is_file():
+                        logging.info(f'[build_ext]{libname} use sys lib')
+                        noneed_downloads.append(libname)
 
         need_downloads = list(set(candidate_3rdpart)-set(noneed_downloads))
         logging.info(f'[build_ext]{need_downloads} will install by source')
