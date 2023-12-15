@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "*.yml": "yaml",
+        "filesystem": "cpp",
+        "stdexcept": "cpp",
+        "string": "cpp"
+    }
+}
