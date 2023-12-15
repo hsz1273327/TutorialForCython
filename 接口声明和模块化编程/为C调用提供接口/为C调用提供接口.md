@@ -12,29 +12,39 @@ C调用一般被称为`嵌入(Embedding Python)`可以分为两种:
 
 ## C中调用Cython模块
 
+这部分对应[C/C++攻略中的C中调用Python模块](https://blog.hszofficial.site/TutorialForCLang/#/%E4%B8%8EPython%E4%BA%A4%E4%BA%92/C%E4%B8%AD%E8%B0%83%E7%94%A8Python%E6%A8%A1%E5%9D%97/C%E4%B8%AD%E8%B0%83%E7%94%A8Python%E6%A8%A1%E5%9D%97).
+
 在这种场景下Cython模块干的事其实还是python干的事,依然使用的是针对python的接口.因此步骤是:
 
 1. 用cython写一个python模块
 2. 将python模块安装到C程序嵌入的python解释器设置的环境中(最好设置虚拟环境)
 
 我们以在一个C程序中调用上个例子[example-cython-package](https://github.com/hsz1273327/example-cython-package)
-第一步怎么做在前文中已经有介绍,这边就只给出第二步中C程序的入口和调用部分.例子在[ccallcy]()
+第一步怎么做在前文中已经有介绍,这边就只给出第二步中C程序的入口和调用部分.例子在[ccallcy](https://github.com/hsz1273327/TutorialForCython/tree/master/%E6%8E%A5%E5%8F%A3%E5%A3%B0%E6%98%8E%E5%92%8C%E6%A8%A1%E5%9D%97%E5%8C%96%E7%BC%96%E7%A8%8B/%E4%B8%BAC%E8%B0%83%E7%94%A8%E6%8F%90%E4%BE%9B%E6%8E%A5%E5%8F%A3/ccallcy)
 
 我们在程序之外要做的事包括:
 
 1. 创建一个虚拟环境用来装之前例子中的包
 2. 激活这个虚拟环境,安装好这个包,为了便于演示,我已经将这个包的编译结果挂在了[github上](https://github.com/hsz1273327/example-cython-package/releases/tag/v0.0.1).可以根据自己的python版本和运行平台自行挑选下载.下载好后我们在虚拟环境下使用`pip install wheel文件路径`来安装.
 
-我们这个例子将用如下这个逻辑调用这个包
+在C程序内,我们需要做的事包括:
 
-```python
-from binary_vector import Vector
-v1 = Vector.new(1,2)
-v1.mod()
-```
+1. 初始化python解释器
+2. 加载模型
+3. 在模型中执行如下业务逻辑
 
+    ```python
+    from binary_vector import Vector
+    v1 = Vector.new(1,2)
+    v1.mod()
+    ```
 
+4. 结束程序前回收Python解释器
+
+这之中只有具体业务逻辑部分和`C/C++攻略中的C中调用Python模块`部分不同,请去那里先看下,这边就只讲不同的地方了.
 它对应的C++代码可以写成
+
+实现上面的业务逻辑代码如下
 
 ```C++
 void call_mod(PyObject* pModule) {
@@ -128,8 +138,10 @@ void call_mod(PyObject* pModule) {
 }
 ```
 
-
-
-### 并发与GIL
+需要注意虽然我们的Cython写的代码可以摆脱GIL限制,但这也仅限于纯C部分,在`C中调用Cython模块`这种场景下由于必然经过python解释器,所以在并发等情况下我们依然需要使用GIL限制资源
 
 ## 在C程序中嵌入python解释器
+
+这部分对应[C/C++攻略中的C中C程序中嵌入python解释器部分](https://blog.hszofficial.site/TutorialForCLang/#/%E4%B8%8EPython%E4%BA%A4%E4%BA%92/C%E7%A8%8B%E5%BA%8F%E4%B8%AD%E5%B5%8C%E5%85%A5python%E8%A7%A3%E9%87%8A%E5%99%A8/C%E7%A8%8B%E5%BA%8F%E4%B8%AD%E5%B5%8C%E5%85%A5python%E8%A7%A3%E9%87%8A%E5%99%A8)
+
+cython在其中的作用基本可以认为就是其中[用C构造Python模块](https://blog.hszofficial.site/TutorialForCLang/#/%E4%B8%8EPython%E4%BA%A4%E4%BA%92/C%E7%A8%8B%E5%BA%8F%E4%B8%AD%E5%B5%8C%E5%85%A5python%E8%A7%A3%E9%87%8A%E5%99%A8/C%E7%A8%8B%E5%BA%8F%E4%B8%AD%E5%B5%8C%E5%85%A5python%E8%A7%A3%E9%87%8A%E5%99%A8?id=%e7%94%a8c%e6%9e%84%e9%80%a0python%e6%a8%a1%e5%9d%97)的部分.毕竟Cython写python模块是专业的.
