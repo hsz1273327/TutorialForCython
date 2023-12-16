@@ -2,8 +2,6 @@
 #include <Python.h>
 #include <exception>
 #include <filesystem>
-#include <format>
-#include <vector>
 #include "delorean_api.h"
 #include "scope_guard.hpp"
 

@@ -196,24 +196,79 @@ Cython除了可以定义python对象也可以定义C对象,其中C函数就可�
 
 需要注意的点有如下几个:
 
-1. `api`只能修饰`cfunc`(`cdef`)或`ccall`(`cpdef`)定义的函数
+1. `api`只能修饰`cfunc`(`cdef`)定义的函数
 2. 如果声明为`api`的函数参数或返回值为特定c结构,需要将这个c结构用`public`修饰出来让C程序可以访问调用
 3. 仅需要导入`模块名_api.h`头文件,不要重复导入`模块名.h`
 4. 比如有个模块是某个模块的子模块`foo.spam`,那它转译出来的头文件应该是`foo.spam_api.h`,导入的函数名则是`import_foo__spam()`
-5. 允许你在多个动态链接库中使用`import_模块名()`,每处都需要先调用这个函数再使用定义的c接口
+5. 允许你在多个动态链接库中使用`import_模块名()`,每处都需要先调用这个函数再使用定义的c接口.
+6. 依然需要在调用`import_模块名()`之前先初始化python解释器,在调用完后执行python解释器的释放操作.
 
-这个例子在[delorean](),大致如下:
+这个例子在[delorean](https://github.com/hsz1273327/TutorialForCython/tree/master/%E6%8E%A5%E5%8F%A3%E5%A3%B0%E6%98%8E%E5%92%8C%E6%A8%A1%E5%9D%97%E5%8C%96%E7%BC%96%E7%A8%8B/%E4%B8%BAC%E8%B0%83%E7%94%A8%E6%8F%90%E4%BE%9B%E6%8E%A5%E5%8F%A3/delorean),大致如下:
 
-+ `delorean.pyx`
+1. 写模块实现,由于这个模块并不需要python调用,我们就纯写个c的
 
-    ```cython
-    cdef public struct Vehicle:
-        int speed
-        float power
+   + `delorean.pyx`
 
-    cdef api void activate(Vehicle *v) except *:
-        if v.speed >= 88 and v.power >= 1.21:
-            print("Time travel achieved")
+       ```cython
+       cdef public struct Vehicle:
+           int speed
+           float power
+
+       cdef api int activate(Vehicle *v) except *:
+           if v.speed >= 88 and v.power >= 1.21:
+               print("Time travel achieved")
+               return 1
+           else:
+               return 0
+       ```
+
+2. 用`setup.py`方式编译它为二进制`wheel`模块.这个过程中,转译生成的`delorean_api.h`以及其他头文件,c实现文件也会被整体打包到模块中.
+3. 将这个二进制`wheel`模块安装到C程序将可以加载模块的环境中,这个操作也会将`delorean_api.h`以及其他头文件,c实现文件放到环境中.
+4. 构造我们的程序入口
+
+   + `main.cpp`
+
+    ```C++
+    #define PY_SSIZE_T_CLEAN
+    #include <Python.h>
+    #include "delorean_api.h"
+    ...
+
+    Vehicle car; //Vehicle是public出来的结构
+    int main(int argc, char* argv[]) {
+        try {
+            // 初始化
+            init_py(argv[0], (char*)"env/", NULL, false);
+            import_delorean(); //导入模块
+            // 开始执行python调用
+            car.speed = atoi(argv[1]); 
+            car.power = atof(argv[2]);
+            int x = activate(&car); //调用cfunc,获取结果
+            if (PyErr_Occurred()) {
+                PyErr_Print();  // 捕获错误,并打印
+            }
+            printf("get result %d\n", x);
+        } catch (const AppException& ex) {
+            fprintf(stderr, ex.what());
+            return 1;
+        }
+        // 回收python解释器
+        return finalize_py();
+    }
     ```
 
-我们将其包装为
+    需要注意`cfunc`名实际是一个宏,很多开发工具很难跟踪到它的参数,返回值类型信息,我们得自己注意着调用.
+
+5. 编译程序,在模块安装后会被放置在`<环境>/lib/python3.10/site-packages/<模块名>`中.这个路径需要加入到头文件的搜索目录,即`-I <环境>/lib/python3.10/site-packages/<模块名>`.
+
+之后我们就可以验证这个例子了:
+
+```bash
+>>> ./ccallcy 1 2.5
+python init config clear
+get result 0
+>>> ./ccallcy 111 22.5
+python init config clear
+Time travel achieved
+get result 1
+```
