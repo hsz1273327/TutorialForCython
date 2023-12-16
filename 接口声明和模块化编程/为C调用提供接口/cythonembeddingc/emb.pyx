@@ -5,7 +5,6 @@ cdef int get_numargsc():
     # global numargs
     return numargs
 
-
 def get_numargs():
     # global numargs
     return numargs

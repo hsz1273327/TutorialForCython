@@ -10,6 +10,54 @@ C调用一般被称为`嵌入(Embedding Python)`可以分为两种:
 
 在阅读本篇之前建议先去看下我写的[C/C++攻略中与Python交互的部分](https://blog.hszofficial.site/TutorialForCLang/#/%E4%B8%8EPython%E4%BA%A4%E4%BA%92/README)
 
+
+## 在C程序中嵌入python解释器
+
+这部分对应[C/C++攻略中的C中C程序中嵌入python解释器部分](https://blog.hszofficial.site/TutorialForCLang/#/%E4%B8%8EPython%E4%BA%A4%E4%BA%92/C%E7%A8%8B%E5%BA%8F%E4%B8%AD%E5%B5%8C%E5%85%A5python%E8%A7%A3%E9%87%8A%E5%99%A8/C%E7%A8%8B%E5%BA%8F%E4%B8%AD%E5%B5%8C%E5%85%A5python%E8%A7%A3%E9%87%8A%E5%99%A8)
+
+cython在其中的作用基本可以认为就是其中[用C构造Python模块](https://blog.hszofficial.site/TutorialForCLang/#/%E4%B8%8EPython%E4%BA%A4%E4%BA%92/C%E7%A8%8B%E5%BA%8F%E4%B8%AD%E5%B5%8C%E5%85%A5python%E8%A7%A3%E9%87%8A%E5%99%A8/C%E7%A8%8B%E5%BA%8F%E4%B8%AD%E5%B5%8C%E5%85%A5python%E8%A7%A3%E9%87%8A%E5%99%A8?id=%e7%94%a8c%e6%9e%84%e9%80%a0python%e6%a8%a1%e5%9d%97)的部分.毕竟Cython写python模块是专业的.
+
+
+我们把模块定义的部分抽出来:
+
++ `emb.pyx`
+
+```cyhton
+# distutils: language = c++
+cdef int numargs = 0
+
+cdef int get_numargsc():
+    # global numargs
+    return numargs
+
+
+def get_numargs():
+    # global numargs
+    return numargs
+
+cdef void set_numargsc(int i):
+    global numargs
+    numargs = i
+
+def set_numargs(int i):
+    cdef int _i = i
+    set_numargsc(_i)
+```
+
++ `emb.pxd`
+
+```cython
+cdef int numargs
+cdef public int get_numargsc()
+cdef public void set_numargsc(int i)
+```
+
+### public关键字
+
+申明了函数`int get_numargsc()`和`void set_numargsc(int i)`为`public`方法,这样在转译`emb.pyx`时会同步创建一个名为`emb.h`的头文件,其中就会有`int get_numargsc()`和`void set_numargsc(int i)`的声明,在C代码中就可以直接调用了.`public`修饰用于声明希望暴露出来给C语言程序调用的东西,这个东西可以是全局变量,结构体,枚举,联合,函数.也就是只要是cython可以定义的c类型都可以用它修饰.我们把`int numargs`设为`public`也可以让我们的主程序直接访问这个变量,这边仅仅是为了和C语言攻略中对应的例子有所区别就用函数进行演示.
+
+只要转译的cython代码声明中有`public`声明,使用`cython`或`cythonize`或使用`setup.py`转译都会生成模块的同名头文件.这个头文件中会有模块的初始化函数,在本例中就是`PyMODINIT_FUNC PyInit_emb(void)`.有了这个我们就可以沿用`C/C++攻略中的C中C程序中嵌入python解释器部分`中介绍的方法将模块挂载为内置模块,然后`import`后直接使用了
+
 ## C中调用Cython模块
 
 这部分对应[C/C++攻略中的C中调用Python模块](https://blog.hszofficial.site/TutorialForCLang/#/%E4%B8%8EPython%E4%BA%A4%E4%BA%92/C%E4%B8%AD%E8%B0%83%E7%94%A8Python%E6%A8%A1%E5%9D%97/C%E4%B8%AD%E8%B0%83%E7%94%A8Python%E6%A8%A1%E5%9D%97).
@@ -140,8 +188,32 @@ void call_mod(PyObject* pModule) {
 
 需要注意虽然我们的Cython写的代码可以摆脱GIL限制,但这也仅限于纯C部分,在`C中调用Cython模块`这种场景下由于必然经过python解释器,所以在并发等情况下我们依然需要使用GIL限制资源
 
-## 在C程序中嵌入python解释器
+### C中调用Cython模块的C方法
 
-这部分对应[C/C++攻略中的C中C程序中嵌入python解释器部分](https://blog.hszofficial.site/TutorialForCLang/#/%E4%B8%8EPython%E4%BA%A4%E4%BA%92/C%E7%A8%8B%E5%BA%8F%E4%B8%AD%E5%B5%8C%E5%85%A5python%E8%A7%A3%E9%87%8A%E5%99%A8/C%E7%A8%8B%E5%BA%8F%E4%B8%AD%E5%B5%8C%E5%85%A5python%E8%A7%A3%E9%87%8A%E5%99%A8)
+上面的写法看起来就累,Cython能不能简化我们的调用呢?可以,这也是为什么这篇文章和对应的C攻略中的顺序相反的原因.
 
-cython在其中的作用基本可以认为就是其中[用C构造Python模块](https://blog.hszofficial.site/TutorialForCLang/#/%E4%B8%8EPython%E4%BA%A4%E4%BA%92/C%E7%A8%8B%E5%BA%8F%E4%B8%AD%E5%B5%8C%E5%85%A5python%E8%A7%A3%E9%87%8A%E5%99%A8/C%E7%A8%8B%E5%BA%8F%E4%B8%AD%E5%B5%8C%E5%85%A5python%E8%A7%A3%E9%87%8A%E5%99%A8?id=%e7%94%a8c%e6%9e%84%e9%80%a0python%e6%a8%a1%e5%9d%97)的部分.毕竟Cython写python模块是专业的.
+Cython除了可以定义python对象也可以定义C对象,其中C函数就可以使用关键字`api`声明后暴露给python解释器.同时会在转译的时候创建一个名为`模块名_api.h`的头文件用于导入.被声明为`api`的C函数在使用特制的函数`import_模块名();`模块后就可以像正常的C函数一样被调用了.
+
+需要注意的点有如下几个:
+
+1. `api`只能修饰`cfunc`(`cdef`)或`ccall`(`cpdef`)定义的函数
+2. 如果声明为`api`的函数参数或返回值为特定c结构,需要将这个c结构用`public`修饰出来让C程序可以访问调用
+3. 仅需要导入`模块名_api.h`头文件,不要重复导入`模块名.h`
+4. 比如有个模块是某个模块的子模块`foo.spam`,那它转译出来的头文件应该是`foo.spam_api.h`,导入的函数名则是`import_foo__spam()`
+5. 允许你在多个动态链接库中使用`import_模块名()`,每处都需要先调用这个函数再使用定义的c接口
+
+这个例子在[delorean](),大致如下:
+
++ `delorean.pyx`
+
+    ```cython
+    cdef public struct Vehicle:
+        int speed
+        float power
+
+    cdef api void activate(Vehicle *v) except *:
+        if v.speed >= 88 and v.power >= 1.21:
+            print("Time travel achieved")
+    ```
+
+我们将其包装为

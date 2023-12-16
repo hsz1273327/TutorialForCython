@@ -5,8 +5,8 @@
 #include <map>
 #include <string>
 #include "crow_all.h"
-#include "emb.h"
 #include "scope_guard.hpp"
+#include "emb.h"
 
 // 应用部分
 class AppException : public std::runtime_error {
@@ -214,6 +214,14 @@ int finalize_py() {
     printf("finalize_py ok\n");
     return 0;
 }
+PyObject* init_pymodule(char* Module_Name) {
+    auto pName = PyUnicode_DecodeFSDefault(Module_Name);  // 将模块名类型转为python对象字符串
+    auto guard = sg::make_scope_guard([&pName]() noexcept {
+        Py_DECREF(pName);  // 释放对象pName的gc计数器
+    });
+    auto pModule = PyImport_Import(pName);  // 导入模块
+    return pModule;
+}
 
 int main(int argc, char* argv[]) {
     // 初始化python解释器
@@ -225,6 +233,10 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, ex.what());
         return 1;
     }
+    auto pModule = init_pymodule((char*)"emb");
+    auto guard_pModule = sg::make_scope_guard([&pModule]() noexcept {
+        Py_XDECREF(pModule);  // 释放pModule
+    });
     // http接口逻辑
     crow::SimpleApp app;
     CROW_ROUTE(app, "/api")
@@ -236,15 +248,12 @@ int main(int argc, char* argv[]) {
     });
 
     CROW_ROUTE(app, "/submit").methods("POST"_method)([](const crow::request& req) {
-        const char* code = nullptr;
-        try {
-            auto x = crow::json::load(req.body);
-            CROW_LOG_INFO << std::format("submit body {}", req.body);
-            auto code_str = std::string(x["code"]);
-            code = code_str.c_str();
-        } catch (const std::exception& e) {
+        crow::multipart::message msg(req);
+        std::string code_str = msg.get_part_by_name("script").body;
+        if (code_str.empty()) {
             return crow::response(crow::status::BAD_REQUEST);  // same as crow::response(400)
         }
+        auto code = code_str.c_str();
         // 开始执行python调用
         // // PyGILState_STATE gstate;
         auto _save = PyEval_SaveThread();
@@ -261,7 +270,7 @@ int main(int argc, char* argv[]) {
         if (res == 0) {
             CROW_LOG_INFO << "PyRun_SimpleString ok";
             crow::json::wvalue x({{"status", "ok"}});
-            x["result"] = get_numargsc();
+            x["result"] = get_numargs();
             return crow::response(x);
         } else {
             CROW_LOG_ERROR << "Python code get error";
