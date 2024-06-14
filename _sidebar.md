@@ -1,7 +1,7 @@
 * [回到博客](http://blog.hszofficial.site/)
 * [首页](README.md)
 * [工具链](工具链/工具链.md)
-* [Cython的编译](Cython的编译补充/Cython的编译.md)
+* [Cython的编译](Cython的编译/Cython的编译.md)
 * [Cython语法](Cython语法/README.md)
     * [C对象部分](Cython语法/C对象部分.md)
     * [Python对象部分](Cython语法/Python对象部分.md)
